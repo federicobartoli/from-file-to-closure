@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The complete ladder — from file to closure</title>
+<style>
+  :root {
+    --carta: #FAFAF7;
+    --inchiostro: #1C1B22;
+    --traccia: #8A8794;
+    --linea: #E3E1EC;
+    --forte: #D8D5E4;
+    --viola: #5A4BD1;
+    --viola-wash: #EFEDFB;
+    --verde: #1D9E75;
+    --verde-wash: #E6F4EE;
+    --rosso: #D6453D;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--carta);
+    color: var(--inchiostro);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    padding: 20px 16px 20px;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--viola);
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(26px, 6vw, 34px);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .sub { color: var(--traccia); margin-bottom: 22px; max-width: 56ch; }
+
+  .codebox {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.5;
+    background: #F4F3F8;
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+  .cl { white-space: pre; border-radius: 5px; padding: 0 6px; min-height: 1.5em; }
+  .cl .gut { display: inline-block; width: 2ch; margin-right: 10px; text-align: right; color: var(--traccia); font-weight: 400; user-select: none; }
+  .cl.on { background: var(--viola-wash); color: var(--viola); font-weight: 600; }
+  .dimmed .cl { opacity: 0.5; }
+
+  .row { display: flex; gap: 10px; margin-bottom: 8px; }
+  .panel {
+    flex: 1;
+    min-width: 0;
+    background: #fff;
+    border: 1.5px solid var(--linea);
+    border-radius: 12px;
+    padding: 8px 12px;
+    transition: border-color 0.25s;
+  }
+  .panel.full { flex: none; width: 100%; }
+  .panel.fresh { border-color: var(--viola); }
+  .ptitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .ptitle .meta { color: var(--traccia); font-weight: 400; }
+  .newtag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--viola);
+    background: var(--viola-wash);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 6px;
+    display: none;
+  }
+  .fresh .newtag { display: inline-block; }
+
+  .cardbox {
+    border: 1.5px solid var(--forte);
+    border-radius: 9px;
+    padding: 6px 9px;
+    margin-bottom: 6px;
+  }
+  .cardbox.accent { border-color: var(--viola); background: var(--viola-wash); }
+  .cardbox .bt { font-size: 12.5px; font-weight: 600; margin-bottom: 1px; }
+  .cardbox .bl { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
+  .cardbox .bs { font-family: var(--mono); font-size: 12px; color: #55525E; margin-top: 2px; }
+  .voidbox {
+    font-size: 12.5px;
+    color: var(--traccia);
+    border: 1.5px dashed var(--forte);
+    border-radius: 9px;
+    padding: 8px 10px;
+  }
+  .gerlines { font-family: var(--mono); font-size: 12.5px; line-height: 1.8; }
+
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+  .dv { background: var(--viola); }
+  .dg { background: var(--verde); }
+
+  .pagecard { background: #fff; border: 1.5px solid var(--linea); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; }
+  .h1demo { font-size: 19px; font-weight: 600; padding: 4px 0; transition: color 0.2s; }
+  .h1demo.hot { color: var(--viola); }
+  .consline { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+  .consdim { color: var(--traccia); }
+  .conshr { border-top: 1.5px solid var(--linea); margin-top: 6px; padding-top: 6px; }
+
+  .lesson {
+    background: #fff;
+    border: 1.5px solid var(--linea);
+    border-left: 4px solid var(--viola);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+  }
+  .lesson .lt { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .lesson .ln { font-size: 15px; line-height: 1.6; }
+
+  /* presenter mode (key n / "Explanation (n)"): the voice explains — the page header and the note text leave the screen;
+     code, panels, page card, step title and the nav counter stay. REQUIRED on camera (regia pre-flight, item 2). */
+  body.presenter .eyebrow, body.presenter h1, body.presenter .sub, body.presenter #note { display: none; }
+  body.presenter .lesson .lt { margin-bottom: 0; }
+
+  .nav {
+    position: sticky;
+    bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1.5px solid var(--linea);
+    border-radius: 999px;
+    padding: 8px 10px;
+    box-shadow: 0 6px 22px rgba(28, 27, 34, 0.09);
+  }
+  .nav .count { flex: 1; text-align: center; font-family: var(--mono); font-size: 12.5px; color: var(--traccia); }
+  .nbtn {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    border: 1.5px solid var(--inchiostro);
+    background: #fff;
+    color: var(--inchiostro);
+    border-radius: 999px;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+  .nbtn.primary { background: var(--inchiostro); color: var(--carta); min-width: 116px; }
+  .nbtn.ghost { border-color: var(--forte); color: var(--traccia); font-size: 12.5px; padding: 8px 12px; }
+  .nbtn:disabled { opacity: 0.35; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--viola); outline-offset: 2px; }
+  @media (max-width: 470px) { .row { flex-direction: column; } }
+  /* wide layout (1080p at 125 % zoom = 1536 CSS px): code + step title stay in view on the left (sticky) while the machine
+     — stack, notebook, warehouse, host, queue, page card, nav — grows on the right */
+  @media (min-width: 1100px) {
+    .wrap { max-width: 1180px; }
+    .stage { display: grid; grid-template-columns: minmax(400px, 440px) minmax(0, 1fr); gap: 16px; }
+    .colL { position: sticky; top: 16px; align-self: start; }
+    /* the nav bar sits at the bottom of the frame on every step ("the counter down here", Beat 1.1); panels grow down towards it */
+    .colR { display: flex; flex-direction: column; min-height: calc(100vh - 40px); }
+    .colR .nav { margin-top: auto; }
+    /* warehouse crates two abreast, so that at step 24 every panel + page card + nav fit in 760 px of height */
+    #heapbody { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+    #heapbody .cardbox { margin-bottom: 0; }
+    #heapbody .voidbox { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: reduce) { .panel, .h1demo { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">From file to closure · 25 steps</div>
+  <h1>The complete ladder</h1>
+  <p class="sub">What really happens when the browser opens a JavaScript file: one concept per step, simplest to hardest. Panels appear only when their concept arrives. Official names first; metaphors in parentheses.</p>
+
+  <div class="stage">
+  <div class="colL">
+    <div class="codebox" id="codebox"></div>
+    <div class="lesson">
+      <div class="lt" id="ntitle"></div>
+      <div class="ln" id="note"></div>
+    </div>
+  </div>
+  <div class="colR">
+
+  <div class="row" id="rowA" style="display:none;">
+    <div class="panel" id="pnl-stack">
+      <div class="ptitle">Execution context stack <span class="meta">(the pile)</span><span class="newtag">new</span></div>
+      <div id="stackbody"></div>
+    </div>
+    <div class="panel" id="pnl-ger" style="display:none;">
+      <div class="ptitle">Global Environment Record <span class="meta">(the global notebook)</span><span class="newtag">new</span></div>
+      <div class="gerlines" id="gerbody"></div>
+    </div>
+  </div>
+
+  <div class="panel full" id="pnl-heap" style="display:none; margin-bottom:10px;">
+    <div class="ptitle">Heap <span class="meta">(the warehouse)</span><span class="newtag">new</span></div>
+    <div id="heapbody"></div>
+  </div>
+
+  <div class="row" id="rowC" style="display:none;">
+    <div class="panel" id="pnl-host">
+      <div class="ptitle">Host <span class="meta">(browser services)</span><span class="newtag">new</span></div>
+      <div id="apibody"></div>
+    </div>
+    <div class="panel" id="pnl-queue" style="display:none;">
+      <div class="ptitle">Task queue <span class="meta">(the queues — here: timers)</span><span class="newtag">new</span></div>
+      <div id="qbody"></div>
+    </div>
+  </div>
+
+  <div class="pagecard">
+    <div class="ptitle">Page</div>
+    <div class="h1demo" id="pagetext"></div>
+    <div class="conshr">
+      <div class="consline consdim">Console</div>
+      <div id="consbody" class="consline"></div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="nbtn ghost" id="notebtn">Explanation (n)</button>
+    <button class="nbtn" id="prev" aria-label="Previous step">←</button>
+    <span class="count" id="stepn"></span>
+    <button class="nbtn primary" id="next">Next →</button>
+  </div>
+
+  </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  function dv(){ return '<span class="dot dv"></span>'; }
+  function dg(){ return '<span class="dot dg"></span>'; }
+
+  var LINES = [
+    "const a = 2;",
+    "const title = document.querySelector('h1');",
+    "",
+    "function start() {",
+    "  const name = 'Anna';",
+    "  function greet() {",
+    "    title.textContent = 'hello ' + name;",
+    "  }",
+    "  setTimeout(greet, 2000);",
+    "}",
+    "",
+    "start();",
+    "console.log('done');"
+  ];
+
+  var EL = { d: "g", t: "HTMLHeadingElement <h1>", s: null };
+  function FA(env){ return { d: "v", t: "ƒ start", s: env ? "[[Environment]] → global" : null }; }
+  function FS(env){ return { d: "v", t: "ƒ greet", s: env ? "[[Environment]] → Context(start)" : null }; }
+  function CX(v){ return { d: "v", t: "Context (start)", s: "name: " + (v === "—" ? "—" : "→ " + v) }; }
+
+  var SCR0 = { n: "script", i: [] };
+  var SCR  = { n: "script", i: ["uses → global notebook"] };
+  var QS   = { n: "querySelector() — host", i: [] };
+  var STO  = { n: "setTimeout() — host", i: [] };
+  var CLG  = { n: "console.log() — host", i: [] };
+  function AV(stage){
+    var rows;
+    if (stage === 1)      rows = ["greet: " + dv() + "→"];
+    else if (stage === 2) rows = ["name → Context " + dv(), "greet: " + dv() + "→"];
+    else                  rows = ["name → Context " + dv(), "greet: " + dv() + "→ (stack only)"];
+    return { n: "start()", i: rows };
+  }
+  var SAL = { n: "greet()", i: ["[[Environment]] → Context " + dv()] };
+
+  function G(a, t, av){ return ["a: " + a, "title: " + t, "start: " + av]; }
+  var GV = ["(empty)"];
+  var TMR = { t: "timer 2000 ms", s: "→ ƒ greet" };
+
+  var steps = [
+    { l:-1, dim:true, tt:"1 · The page and the file", st:null, ger:null, hp:null, api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"The browser has already built the page (look below: the h1 is there), because your <script> sits at the bottom, after the h1 — a classic script blocks the parser and only sees the page built above it. Then the file reaches the engine, the program that runs JavaScript: in Chrome it's called V8. For now, your code is just text." },
+    { l:-1, dim:false, tt:"2 · Parsing (read first)", st:null, ger:null, hp:null, api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"No line has run: before executing, the engine reads the whole file and checks its syntax. That's why a typo at line 100 blocks line 1 too: reading comes before running. (V8 detail: reading is lazy — lazy parsing: inner functions are only skimmed by the preparser, and truly compiled at their first call.)" },
+    { l:-1, dim:false, tt:"3 · Execution context and the stack", st:[SCR0], ger:null, hp:null, api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"To run code you need a working context: it's called an execution context (picture it as a slip of paper). They pile up: the execution context stack. For your code, the first one belongs to the script (below it there's only a browser service context). One single thread — one single worker: it only ever works on the top slip." },
+    { l:-1, dim:false, tt:"4 · Environment Record (the notebook)", st:[SCR], ger:GV, hp:null, api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Every execution context has its own register of names: the Environment Record (the notebook). This is the global one. Every name your code will ever use must live in some notebook." },
+    { l:-1, dim:false, tt:"5 · GlobalDeclarationInstantiation (hoisting)", st:[SCR], ger:G("—","—","ƒ"), hp:null, api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Before executing, the engine registers in the notebook the names it read: the official operation is GlobalDeclarationInstantiation — 'hoisting' is the folk nickname: the spec never defines it as an operation (the word only turns up in a few notes and in the grammar name HoistableDeclaration). That's why all three names are already there, before any line has run. And notice start: no dash, an ƒ — the why comes in two steps." },
+    { l:-1, dim:false, tt:"6 · Temporal dead zone (the dash)", st:[SCR], ger:G("—","—","ƒ"), hp:null, api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"The dash = the binding exists but is uninitialized — the spec's words: it «may not be accessed in any way until the variable's LexicalBinding is evaluated»; everyone calls it the temporal dead zone (TDZ). If a line touched title NOW, it would get a ReferenceError — the name exists, the value doesn't. It unlocks when execution reaches its line. It applies to const and let, not to functions: start never had a dash — its ƒ is already there." },
+    { l:-1, dim:false, tt:"7 · Heap (the warehouse)", st:[SCR], ger:G("—","—","ƒ"), hp:[], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Big values don't live in the notebook: they live in a separate area, the heap (the warehouse), and the notebook keeps a reference (the arrow) pointing at them. Careful: stack, notebooks and warehouse as drawn here are V8's model — the language spec says what must happen, never where the bytes live. (In V8 even the global notebook is a heap structure — a script Context plus the global object; we draw it apart only for clarity.)" },
+    { l:-1, dim:false, tt:"8 · Functions are born ready", st:[SCR], ger:G("—","—", dv()+"→"), hp:[FA(false)], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Still during registration, declared functions are built whole, as objects, and placed in the warehouse: that's what start's ƒ was — and now an arrow replaces it, pointing into the warehouse. That's why you can call a function written further down. (V8 detail: the object is born at once; the body is compiled at the first call.)" },
+    { l:0, dim:false, tt:"9 · The simplest variable", st:[SCR], ger:G("2","—", dv()+"→"), hp:[FA(false)], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Now we execute, line by line. 2 is a primitive — one of the language's simple values: numbers, strings, booleans and a few more; the spec says how they behave, never WHERE they live. In V8, a small integer is an Smi: an immediate value stored right in the notebook slot — an engine special case, not a rule about primitives (strings, you'll see, go to the warehouse)." },
+    { l:1, dim:false, tt:"10 · A call into the browser (host)", st:[SCR, QS], ger:G("2","—", dv()+"→"), hp:[FA(false)], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"querySelector is a call, and every call goes on the stack: push. But its body isn't JavaScript: it's a browser service — the host. And document isn't yours: the page lends it to you." },
+    { l:1, dim:false, tt:"11 · Pop: objects go to the warehouse", st:[SCR], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(false), EL], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"The call ends and its slip leaves the stack: pop. The service returns the reference to the element: it's an object, and in V8 an object is a heap object: it lives in the warehouse. From now on, title points at that piece of the page (your remote control)." },
+    { l:3, dim:false, tt:"12 · The function line: already done", st:[SCR], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(false), EL], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"The thread gets here and… NOTHING happens: the work was done at step 8 — the line is skipped. Look at the panels: identical." },
+    { l:11, dim:false, tt:"13 · Calling a function (FunctionDeclarationInstantiation)", st:[SCR, AV(1)], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(false), EL, FS(false)], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"start() opens a new execution context with its OWN Environment Record: steps 4–8 replay in miniature, in one stroke — the official operation is FunctionDeclarationInstantiation. name is registered and already in TDZ; ƒ greet is ALREADY built in the warehouse, before a single body line runs. But look at the slip: name is NOT there — where it lives is the next step's plot twist. Many contexts, one single thread: the one below waits, frozen." },
+    { l:11, dim:false, tt:"14 · The Context (V8)", st:[SCR, AV(2)], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(false), EL, FS(false), CX("—")], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Plot twist: name doesn't live on the slip. While READING, the engine had already seen that greet will use it — so its notebook is born straight in the warehouse, at the very instant of entry: in V8 it's called a Context. name never touches the stack." },
+    { l:4, dim:false, tt:"15 · Writing into the Context", st:[SCR, AV(2)], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(false), EL, FS(false), CX("'Anna'")], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Initialization — not an assignment: name is a const — writes into the Context slot, in the warehouse. name's TDZ is over. The value? 'Anna' is a primitive for the language, but in V8 it's ANOTHER crate in the same warehouse: the slot gets the arrow to it. Crates point at each other — even ƒ greet points at the Context: the warehouse is a graph of arrows." },
+    { l:5, dim:false, tt:"16 · [[Environment]] (the backpack)", st:[SCR, AV(3)], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:null, q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"Line skipped, like step 12: ƒ greet has existed since entry. Every function is born with an internal slot, [[Environment]]: the reference to its birth environment (the backpack) — greet's points at start's Context, start's at the global. The binding greet — the name→value pair in start's notebook — is not 'captured': no inner function uses it, so V8 keeps it on the slip only (per the spec it still lives in the environment: greet could call itself)." },
+    { l:8, dim:false, tt:"17 · setTimeout (the timer is the browser's)", st:[SCR, AV(3), STO], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[TMR], q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"setTimeout doesn't live in the language standard (that's ECMAScript): it lives in the HTML Standard. The call is yours and synchronous — in and out of the stack at once; the COUNTING belongs to the host. Your thread waits for no one." },
+    { l:9, dim:false, tt:"18 · Pop — and the closure survives", st:[SCR], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[TMR], q:null, pg:"Waiting…", hot:false, cs:[],
+      note:"start returns: pop — the binding greet dies with the slip, but the Context has been in the warehouse since entry, and ƒ greet points at it: it survives. THIS is the closure at work: data alive after the function has died (the closure itself is ƒ greet plus that Context). And who keeps ƒ greet alive, now that the slip is gone? The host: while the timer counts — and then while the task waits in the queue — the browser holds the reference (see the Host panel)." },
+    { l:12, dim:false, tt:"19 · console.log (a real frame)", st:[SCR, CLG], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[TMR], q:null, pg:"Waiting…", hot:false, cs:["done"],
+      note:"console.log goes on the stack too: a true execution context (a frame, in jargon), with a native body. It's not ECMAScript either: it lives in yet another standard, the Console Standard (the one that defines the console API — what actually gets printed, and how, is left to the implementation). Push, print, pop." },
+    { l:-1, dim:false, tt:"20 · The stack truly empties", st:[], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[{ t:"counting…", s:"→ ƒ greet" }], q:null, pg:"Waiting…", hot:false, cs:["done"],
+      note:"The script ends and its context pops too: between tasks the stack is truly EMPTY — the global context doesn't sit there forever. Global names stay in the notebook, which lives on its own. And the browser's timer is still counting." },
+    { l:-1, dim:false, tt:"21 · Task queue (the line)", st:[], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[], q:["task → call ƒ greet"], pg:"Waiting…", hot:false, cs:["done"],
+      note:"2000 ms have passed. The reference does NOT jump onto the stack: the host queues a task — a job in line — into the task queue; the spec even names its origin, the timer task source. It would do the same with 0 ms: milliseconds are a minimum, not a promise." },
+    { l:-1, dim:false, tt:"22 · Event loop (the loop)", st:[SAL], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[], q:[], pg:"Waiting…", hot:false, cs:["done"],
+      note:"Who takes tasks out of the queue? The event loop (the loop): the procedure your main thread follows forever — it picks a queue with runnable tasks (the spec allows one or more; tasks are labelled by task source — timers, user interaction… — and the browser decides how sources map to queues), takes the oldest, and ITSELF calls the function written on the task: that's how greet's new execution context is born, on an empty stack. A task runs TO COMPLETION: until the stack is empty again. That's why the loop never has to wait for the stack: when it comes back to fish, it emptied it itself — empty by construction. All of async — code that starts 'later', on its own — is this loop, repeated forever." },
+    { l:6, dim:false, tt:"23 · Name lookup (the closure cashes in)", st:[SAL], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[], q:[], pg:"Waiting…", hot:false, cs:["done"],
+      note:"greet looks for name: not in its own notebook → it follows [[Environment]] → the Context: 'Anna'. It looks for title: not there either → up to the global notebook. Lookup ALWAYS climbs outward, never inward. Then it touches the element: the DOM changes at once… but look at the Page: nothing yet." },
+    { l:-1, dim:false, tt:"24 · Update the rendering (paint time)", st:[], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL, FS(true), CX("'Anna'")], api:[], q:[], pg:"hello Anna", hot:true, cs:["done"],
+      note:"greet's task ends: pop, stack empty. Only NOW does the browser paint: the algorithm is called «update the rendering», and the spec queues it as a task of its own (on the rendering task source) whenever there's a rendering opportunity — so it can never run in the middle of your code. The DOM had already changed; the pixels arrive here: hello Anna." },
+    { l:-1, dim:false, tt:"25 · Garbage collector (curtain)", st:[], ger:G("2", dg()+"→", dv()+"→"), hp:[FA(true), EL], api:[], q:[], pg:"hello Anna", hot:true, cs:["done"],
+      note:"Nobody points at ƒ greet anymore: timer delivered, task done, slip dead — it's unreachable. V8's garbage collector MAY collect it together with its Context: when, is its own call — the spec doesn't even guarantee it happens (in the panel, we remove them ourselves). What remains: the global notebook, the element, ƒ start. From the file to the closure: the whole ladder is right here." }
+  ];
+
+  var APPEAR = { rowA: 2, ger: 3, heap: 6, rowC: 16, queue: 20 };
+  var cur = 0;
+
+  function esc(s){ return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  function boxHtml(title, items, accent){
+    var h = '<div class="cardbox' + (accent ? " accent" : "") + '">';
+    h += '<div class="bt">' + title + "</div>";
+    for (var i = 0; i < items.length; i++) h += '<div class="bl">' + items[i] + "</div>";
+    return h + "</div>";
+  }
+  function heapHtml(o){
+    var h = '<div class="cardbox"><div class="bl">' + (o.d === "g" ? dg() : dv()) + esc(o.t) + "</div>";
+    if (o.s) h += '<div class="bs">' + esc(o.s) + "</div>";
+    return h + "</div>";
+  }
+  function voidHtml(t){ return '<div class="voidbox">' + t + "</div>"; }
+  function show(id, on){ document.getElementById(id).style.display = on ? "" : "none"; }
+  function fresh(id, on){ document.getElementById(id).classList.toggle("fresh", on); }
+
+  function render(){
+    var s = steps[cur];
+
+    var cb = "";
+    for (var i = 0; i < LINES.length; i++) {
+      cb += '<div class="cl' + (i === s.l ? " on" : "") + '"><span class="gut">' + (i + 1) + "</span>" + (LINES[i] === "" ? "&nbsp;" : esc(LINES[i])) + "</div>";
+    }
+    var codebox = document.getElementById("codebox");
+    codebox.innerHTML = cb;
+    codebox.classList.toggle("dimmed", !!s.dim);
+
+    show("rowA", cur >= APPEAR.rowA);
+    show("pnl-ger", cur >= APPEAR.ger);
+    show("pnl-heap", cur >= APPEAR.heap);
+    show("rowC", cur >= APPEAR.rowC);
+    show("pnl-queue", cur >= APPEAR.queue);
+    fresh("pnl-stack", cur === APPEAR.rowA);
+    fresh("pnl-ger", cur === APPEAR.ger);
+    fresh("pnl-heap", cur === APPEAR.heap);
+    fresh("pnl-host", cur === APPEAR.rowC);
+    fresh("pnl-queue", cur === APPEAR.queue);
+
+    var st = "";
+    if (s.st) {
+      if (!s.st.length) st = voidHtml("stack empty");
+      for (var f = s.st.length - 1; f >= 0; f--) st += boxHtml(esc(s.st[f].n), s.st[f].i, f === s.st.length - 1 && s.st.length > 1);
+    }
+    document.getElementById("stackbody").innerHTML = st;
+
+    if (s.ger) {
+      var gb = "";
+      for (var g = 0; g < s.ger.length; g++) gb += "<div>" + s.ger[g] + "</div>";
+      document.getElementById("gerbody").innerHTML = gb;
+    }
+
+    if (s.hp) {
+      var hp = "";
+      if (!s.hp.length) hp = voidHtml("empty");
+      else for (var k = 0; k < s.hp.length; k++) hp += heapHtml(s.hp[k]);
+      document.getElementById("heapbody").innerHTML = hp;
+    }
+
+    var ap = "";
+    if (!s.api || !s.api.length) ap = voidHtml("no host work");
+    else for (var a = 0; a < s.api.length; a++) ap += '<div class="cardbox"><div class="bl">' + esc(s.api[a].t) + '</div><div class="bs">' + esc(s.api[a].s) + "</div></div>";
+    document.getElementById("apibody").innerHTML = ap;
+
+    var qb = "";
+    if (!s.q || !s.q.length) qb = voidHtml("empty");
+    else for (var w = 0; w < s.q.length; w++) qb += '<div class="cardbox"><div class="bl">' + dv() + esc(s.q[w]) + "</div></div>";
+    document.getElementById("qbody").innerHTML = qb;
+
+    var pt = document.getElementById("pagetext");
+    pt.textContent = s.pg;
+    pt.classList.toggle("hot", !!s.hot);
+
+    var cs = "";
+    for (var c = 0; c < s.cs.length; c++) cs += "<div>&gt; " + esc(s.cs[c]) + "</div>";
+    document.getElementById("consbody").innerHTML = cs || '<div class="consdim">&nbsp;</div>';
+
+    document.getElementById("ntitle").textContent = s.tt;
+    document.getElementById("note").textContent = s.note;
+    var phase = cur <= 7 ? "READ" : cur <= 15 ? "RUN" : cur <= 21 ? "WAIT" : "PAINT";
+    document.getElementById("stepn").textContent = (cur + 1) + " / " + steps.length + " · " + phase;
+    document.getElementById("prev").disabled = cur === 0;
+    document.getElementById("next").textContent = cur === steps.length - 1 ? "Restart" : "Next →";
+  }
+
+  // presenter mode: hides the page header and the note text (body.presenter, see CSS). Toggle only — never runs or resets anything.
+  function presenter(){ document.body.classList.toggle("presenter"); }
+
+  document.getElementById("prev").addEventListener("click", function(){ if (cur > 0) { cur--; render(); } });
+  document.getElementById("next").addEventListener("click", function(){ cur = (cur === steps.length - 1) ? 0 : cur + 1; render(); });
+  document.getElementById("notebtn").addEventListener("click", presenter);
+  // keys: → / ← step, n = presenter mode. Modifier combos (cmd/ctrl/alt) are left to the browser.
+  document.addEventListener("keydown", function(e){
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "ArrowRight") { cur = (cur === steps.length - 1) ? cur : cur + 1; render(); }
+    if (e.key === "ArrowLeft") { if (cur > 0) { cur--; render(); } }
+    if (e.key === "n" || e.key === "N") presenter();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
