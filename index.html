@@ -164,7 +164,15 @@
   .nbtn.ghost { border-color: var(--forte); color: var(--traccia); font-size: 12.5px; padding: 8px 12px; }
   .nbtn:disabled { opacity: 0.35; cursor: default; }
   button:focus-visible { outline: 2px solid var(--viola); outline-offset: 2px; }
-  @media (max-width: 470px) { .row { flex-direction: column; } }
+  @media (max-width: 470px) {
+    .row { flex-direction: column; }
+    /* phones: the bar is pinned to the bottom of the screen (Next always in reach) and the step counter
+       gets its own row above the buttons, so it never wraps word by word */
+    body { padding-bottom: 124px; }
+    .nav { position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 5; flex-wrap: wrap; row-gap: 6px; border-radius: 18px; }
+    .nav .count { order: -1; flex-basis: 100%; white-space: nowrap; }
+    .nbtn.primary { flex: 1; min-width: 0; }
+  }
   /* wide layout (1080p at 125 % zoom = 1536 CSS px): code + step title stay in view on the left (sticky) while the machine
      — stack, notebook, warehouse, host, queue, page card, nav — grows on the right */
   @media (min-width: 1100px) {
